@@ -1,0 +1,85 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "win32 build",
+			"type": "shell",
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"windows": {
+				"command": "build.bat"
+			},
+			"problemMatcher": [
+				"$msCompile",
+				{
+					"fileLocation": "autoDetect",
+					"pattern": {
+						"regexp": "^([^\\s].*)\\s*:\\s+(?:fatal\\s+)?(error|warning)\\s+(LNK\\d+)\\s*:\\s*(.*)$",
+						"kind": "file",
+						"severity": 2,
+						"code": 3,
+						"message": 4,
+						"file": 1
+					}
+				}
+			],
+			"presentation": {
+				"reveal": "never",
+				"panel": "shared",
+				"showReuseMessage": false,
+				"clear": true
+			}
+		},
+		{
+			"label": "win32 build release",
+			"type": "shell",
+			"group": "build",
+			"windows": {
+				"command": "build.bat",
+				"args": [
+					"release"
+				]
+			},
+			"problemMatcher": [
+				"$msCompile",
+				{
+					"fileLocation": "autoDetect",
+					"pattern": {
+						"regexp": "^([^\\s].*)\\s*:\\s+(?:fatal\\s+)?(error|warning)\\s+(LNK\\d+)\\s*:\\s*(.*)$",
+						"kind": "file",
+						"severity": 2,
+						"code": 3,
+						"message": 4,
+						"file": 1
+					}
+				}
+			],
+			"presentation": {
+				"reveal": "never",
+				"panel": "shared",
+				"showReuseMessage": false,
+				"clear": true
+			}
+		},
+		{
+			"label": "win32 build clean",
+			"type": "shell",
+			"group": "build",
+			"windows": {
+				"command": "build.bat",
+				"args": [
+					"clean"
+				]
+			},
+			"presentation": {
+				"reveal": "never",
+				"panel": "shared",
+				"showReuseMessage": false,
+				"clear": true
+			},
+			"problemMatcher": []
+		}
+	]
+}

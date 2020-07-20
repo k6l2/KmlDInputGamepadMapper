@@ -1,0 +1,29 @@
+{
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"name": "win32 build(debug) & debug",
+			"type": "cppvsdbg",
+			"request": "launch",
+			"program": "${env:project_root}/build/${env:kmlApplicationName}.exe",
+			"args": ["..\\"],
+			"stopAtEntry": false,
+			"cwd": "${workspaceRoot}",
+			"environment": [],
+			"externalConsole": false,
+			"preLaunchTask": "win32 build"
+		},
+		{
+			"name": "win32 build(release) & debug",
+			"type": "cppvsdbg",
+			"request": "launch",
+			"program": "${env:project_root}/build/${env:kmlApplicationName}.exe",
+			"args": ["..\\"],
+			"stopAtEntry": false,
+			"cwd": "${workspaceRoot}",
+			"environment": [],
+			"externalConsole": false,
+			"preLaunchTask": "win32 build release"
+		}
+	]
+}
