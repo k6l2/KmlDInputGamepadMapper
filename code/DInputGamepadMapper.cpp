@@ -89,14 +89,16 @@ local_persist const char* BUTTON_NAMES[] =
 	, "bottom face-button"
 	, "left face-button"
 	, "right face-button"
-	, "start/pause"
-	, "back/select"
+	, "start/pause/options"
+	, "back/select/share"
 	, "d-pad UP"
 	, "d-pad DOWN"
 	, "d-pad LEFT"
 	, "d-pad RIGHT"
 	, "left shoulder (L1)"
 	, "right shoulder (R1)"
+	, "left shoulder 2 (L2)"
+	, "right shoulder 2 (R2)"
 	, "left stick click (L3)"
 	, "right stick click (R3)"
 };
@@ -118,9 +120,26 @@ internal void padMapperImGuiDisplayPadInfo()
 	}
 	for(u8 a = 0; a < g_gs->nextToMapAxis; a++)
 	{
+		if(g_gs->axisMap[a].index == INVALID_PLATFORM_AXIS_INDEX)
+		{
+			ImGui::Text("DISABLED->'%s'", AXIS_NAMES[a]);
+			continue;
+		}
 		ImGui::Text("%caxis[%i]->'%s'", g_gs->axisMap[a].positive ? '+' : '-',
 		            g_gs->axisMap[a].index, AXIS_NAMES[a]);
 	}
+}
+internal bool operator==(const PlatformGamePadActiveAxis& lhs, 
+                         const PlatformGamePadActiveAxis& rhs)
+{
+	return lhs.index == rhs.index 
+		&& lhs.positive == rhs.positive;
+}
+internal bool operator!=(const PlatformGamePadActiveAxis& lhs, 
+                         const PlatformGamePadActiveAxis& rhs)
+{
+	return lhs.index != rhs.index 
+		|| lhs.positive != rhs.positive;
 }
 #include <cstdio>
 internal void padMapperSaveMapToClipboard()
@@ -132,6 +151,8 @@ internal void padMapperSaveMapToClipboard()
 	                      g_gs->activeGamePadProductGuid);
 	for(u8 b = 0; b < g_gs->nextToMapButton; b++)
 	{
+		if(g_gs->buttonMap[b] == INVALID_PLATFORM_BUTTON_INDEX)
+			continue;
 		if(b > 0)
 			currChar += 
 				sprintf_s(g_gs->padMapOutputBuffer + currChar, 
@@ -155,14 +176,31 @@ internal void padMapperSaveMapToClipboard()
 				          CARRAY_COUNT(g_gs->padMapOutputBuffer) - currChar,
 				          "!");
 	}
-	kassert(!"TODO: sprintf_s axis map");
+	for(u8 a = 0; a < g_gs->nextToMapAxis; a++)
+	{
+		if(g_gs->axisMap[a].index == INVALID_PLATFORM_AXIS_INDEX)
+			continue;
+		currChar += sprintf_s(g_gs->padMapOutputBuffer + currChar, 
+		                      CARRAY_COUNT(g_gs->padMapOutputBuffer) - currChar, 
+		                      ",%ca%i:%i", 
+		                      g_gs->axisMap[a].positive ? '+' : '-', 
+		                      g_gs->axisMap[a].index, a);
+		bool duplicateAxisFound = false;
+		for(u8 aa = static_cast<u8>(a + 1); aa < g_gs->nextToMapAxis; aa++)
+		{
+			if(g_gs->axisMap[a] == g_gs->axisMap[aa])
+			{
+				duplicateAxisFound = true;
+				break;
+			}
+		}
+		if(duplicateAxisFound)
+			currChar += 
+				sprintf_s(g_gs->padMapOutputBuffer + currChar, 
+				          CARRAY_COUNT(g_gs->padMapOutputBuffer) - currChar,
+				          "!");
+	}
 	ImGui::SetClipboardText(g_gs->padMapOutputBuffer);
-}
-internal bool operator!=(const PlatformGamePadActiveAxis& lhs, 
-                         const PlatformGamePadActiveAxis& rhs)
-{
-	return lhs.index != rhs.index 
-		|| lhs.positive != rhs.positive;
 }
 GAME_UPDATE_AND_DRAW(gameUpdateAndDraw)
 {
@@ -266,6 +304,18 @@ GAME_UPDATE_AND_DRAW(gameUpdateAndDraw)
 				ImGui::Separator();
 				ImGui::Text("Press & hold the '%s' button.", 
 				            BUTTON_NAMES[g_gs->nextToMapButton]);
+				ImGui::Text("Press [backspace] to go back a step.");
+				if(gameKeyboard.backspace == ButtonState::PRESSED 
+					&& windowIsFocused)
+				{
+					if(g_gs->nextToMapButton == 0)
+					{
+						g_gs->gamePadMapperState = 
+							GamePadMapperState::WAITING_TO_ACQUIRE;
+						break;
+					}
+					g_gs->nextToMapButton--;
+				}
 				g_gs->activeButtonIndex = 
 					g_kpl->getGamePadActiveButton(g_gs->activeGamePad);
 				if(g_gs->activeButtonIndex != INVALID_PLATFORM_BUTTON_INDEX)
@@ -328,8 +378,22 @@ GAME_UPDATE_AND_DRAW(gameUpdateAndDraw)
 			{
 				padMapperImGuiDisplayPadInfo();
 				ImGui::Separator();
-				ImGui::Text("Press & hold the '%s' axis.", 
+				ImGui::Text("Press & hold the '%s' axis, ", 
 				            AXIS_NAMES[g_gs->nextToMapAxis]);
+				ImGui::Text("or press the [enter] key to disable this input ");
+				ImGui::Text("if the controller has no such axis, ");
+				ImGui::Text("or press [backspace] to go back a step.");
+				if(gameKeyboard.backspace == ButtonState::PRESSED 
+					&& windowIsFocused)
+				{
+					g_gs->nextToMapAxis--;
+					if(g_gs->nextToMapAxis <= 0)
+					{
+						g_gs->gamePadMapperState = 
+							GamePadMapperState::WAITING_FOR_NEXT_ACTIVE_BUTTON;
+						g_gs->nextToMapButton--;
+					}
+				}
 				g_gs->activeAxis = 
 					g_kpl->getGamePadActiveAxis(g_gs->activeGamePad);
 				if(g_gs->activeAxis.index != INVALID_PLATFORM_AXIS_INDEX)
@@ -337,6 +401,17 @@ GAME_UPDATE_AND_DRAW(gameUpdateAndDraw)
 					g_gs->gamePadButtonOrAxisHoldSeconds = 0;
 					g_gs->gamePadMapperState = 
 						GamePadMapperState::ACQUIRING_NEXT_ACTIVE_AXIS;
+				}
+				else if(gameKeyboard.enter == ButtonState::PRESSED 
+					&& windowIsFocused)
+				{
+					g_gs->axisMap[g_gs->nextToMapAxis] = 
+						{INVALID_PLATFORM_AXIS_INDEX};
+					g_gs->nextToMapAxis++;
+					if(g_gs->nextToMapAxis >= CARRAY_COUNT(g_gs->axisMap))
+					{
+						g_gs->gamePadMapperState = GamePadMapperState::DONE;
+					}
 				}
 			} break;
 			case GamePadMapperState::ACQUIRING_NEXT_ACTIVE_AXIS:
@@ -391,6 +466,14 @@ GAME_UPDATE_AND_DRAW(gameUpdateAndDraw)
 			{
 				padMapperImGuiDisplayPadInfo();
 				ImGui::Separator();
+				ImGui::Text("Press [backspace] to go back a step.");
+				if(gameKeyboard.backspace == ButtonState::PRESSED 
+					&& windowIsFocused)
+				{
+					g_gs->gamePadMapperState = 
+						GamePadMapperState::WAITING_FOR_NEXT_ACTIVE_AXIS;
+					g_gs->nextToMapAxis--;
+				}
 				if(ImGui::Button("Copy To Clipboard"))
 				{
 					padMapperSaveMapToClipboard();

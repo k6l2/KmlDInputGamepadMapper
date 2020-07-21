@@ -43,7 +43,7 @@ struct GameState
 	u16 activeButtonIndex;
 	PlatformGamePadActiveAxis activeAxis;
 	u16 buttonMap[CARRAY_COUNT(GamePad::buttons)];
-	PlatformGamePadActiveAxis axisMap[6];
+	PlatformGamePadActiveAxis axisMap[CARRAY_COUNT(GamePad::axes)];
 	char padMapOutputBuffer[16 * 1024];
 };
 global_variable GameState* g_gs;
