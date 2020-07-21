@@ -65,9 +65,10 @@ internal u8 padMapperFirstActiveControllerIndex(GamePad* gamePadArray,
 			continue;
 		}
 		const u16 gpActiveButton = g_kpl->getGamePadActiveButton(c);
-		const u16 gpActiveAxis   = g_kpl->getGamePadActiveAxis(c);
+		const PlatformGamePadActiveAxis gpActiveAxis = 
+			g_kpl->getGamePadActiveAxis(c);
 		if(gpActiveButton != INVALID_PLATFORM_BUTTON_INDEX
-			|| gpActiveAxis != INVALID_PLATFORM_AXIS_INDEX)
+			|| gpActiveAxis.index != INVALID_PLATFORM_AXIS_INDEX)
 		{
 			if(result == numGamePads)
 			{
@@ -84,20 +85,28 @@ internal u8 padMapperFirstActiveControllerIndex(GamePad* gamePadArray,
 	return result;
 }
 local_persist const char* BUTTON_NAMES[] =
-	{ "face-button Up"
-	, "face-button Down"
-	, "face-button Left"
-	, "face-button Right"
+	{ "top face-button"
+	, "bottom face-button"
+	, "left face-button"
+	, "right face-button"
 	, "start/pause"
 	, "back/select"
-	, "d-pad Up"
-	, "d-pad Down"
-	, "d-pad Left"
-	, "d-pad Right"
-	, "shoulder left"
-	, "shoulder right"
-	, "stick click left"
-	, "stick click right"
+	, "d-pad UP"
+	, "d-pad DOWN"
+	, "d-pad LEFT"
+	, "d-pad RIGHT"
+	, "left shoulder (L1)"
+	, "right shoulder (R1)"
+	, "left stick click (L3)"
+	, "right stick click (R3)"
+};
+local_persist const char* AXIS_NAMES[] =
+	{ "left stick (horizontal RIGHT)"
+	, "left stick (vertical UP)"
+	, "right stick (horizontal RIGHT)"
+	, "right stick (vertical UP)"
+	, "left trigger"
+	, "right trigger"
 };
 internal void padMapperImGuiDisplayPadInfo()
 {
@@ -106,6 +115,11 @@ internal void padMapperImGuiDisplayPadInfo()
 	for(u8 b = 0; b < g_gs->nextToMapButton; b++)
 	{
 		ImGui::Text("button[%i]->'%s'", g_gs->buttonMap[b], BUTTON_NAMES[b]);
+	}
+	for(u8 a = 0; a < g_gs->nextToMapAxis; a++)
+	{
+		ImGui::Text("%caxis[%i]->'%s'", g_gs->axisMap[a].positive ? '+' : '-',
+		            g_gs->axisMap[a].index, AXIS_NAMES[a]);
 	}
 }
 #include <cstdio>
@@ -141,7 +155,14 @@ internal void padMapperSaveMapToClipboard()
 				          CARRAY_COUNT(g_gs->padMapOutputBuffer) - currChar,
 				          "!");
 	}
+	kassert(!"TODO: sprintf_s axis map");
 	ImGui::SetClipboardText(g_gs->padMapOutputBuffer);
+}
+internal bool operator!=(const PlatformGamePadActiveAxis& lhs, 
+                         const PlatformGamePadActiveAxis& rhs)
+{
+	return lhs.index != rhs.index 
+		|| lhs.positive != rhs.positive;
 }
 GAME_UPDATE_AND_DRAW(gameUpdateAndDraw)
 {
@@ -172,7 +193,7 @@ GAME_UPDATE_AND_DRAW(gameUpdateAndDraw)
 		}
 		ImGui::EndMainMenuBar();
 	}
-	local_persist const f32 HOLD_SECONDS_REQUIRED = 1;// previously: 2
+	local_persist const f32 HOLD_SECONDS_REQUIRED = 0.5f;// previously: 1
 	if(ImGui::Begin("Controller Mapper", nullptr, 
 	                ImGuiWindowFlags_AlwaysAutoResize))
 	{
@@ -242,6 +263,7 @@ GAME_UPDATE_AND_DRAW(gameUpdateAndDraw)
 			case GamePadMapperState::WAITING_FOR_NEXT_ACTIVE_BUTTON:
 			{
 				padMapperImGuiDisplayPadInfo();
+				ImGui::Separator();
 				ImGui::Text("Press & hold the '%s' button.", 
 				            BUTTON_NAMES[g_gs->nextToMapButton]);
 				g_gs->activeButtonIndex = 
@@ -305,13 +327,74 @@ GAME_UPDATE_AND_DRAW(gameUpdateAndDraw)
 			case GamePadMapperState::WAITING_FOR_NEXT_ACTIVE_AXIS:
 			{
 				padMapperImGuiDisplayPadInfo();
-				if(ImGui::Button("Copy To Clipboard"))
+				ImGui::Separator();
+				ImGui::Text("Press & hold the '%s' axis.", 
+				            AXIS_NAMES[g_gs->nextToMapAxis]);
+				g_gs->activeAxis = 
+					g_kpl->getGamePadActiveAxis(g_gs->activeGamePad);
+				if(g_gs->activeAxis.index != INVALID_PLATFORM_AXIS_INDEX)
 				{
-					padMapperSaveMapToClipboard();
+					g_gs->gamePadButtonOrAxisHoldSeconds = 0;
+					g_gs->gamePadMapperState = 
+						GamePadMapperState::ACQUIRING_NEXT_ACTIVE_AXIS;
 				}
 			} break;
 			case GamePadMapperState::ACQUIRING_NEXT_ACTIVE_AXIS:
 			{
+				g_gs->gamePadButtonOrAxisHoldSeconds += deltaSeconds;
+				if(g_gs->gamePadButtonOrAxisHoldSeconds < HOLD_SECONDS_REQUIRED)
+				{
+					const f32 ratioHoldSeconds = 
+						g_gs->gamePadButtonOrAxisHoldSeconds / 
+						HOLD_SECONDS_REQUIRED;
+					ImGui::ProgressBar(ratioHoldSeconds, ImVec2(300, 0), 
+					                   "ACQUIRING...");
+					const PlatformGamePadActiveAxis activeAxis = 
+						g_kpl->getGamePadActiveAxis(g_gs->activeGamePad);
+					if(activeAxis != g_gs->activeAxis)
+					{
+						g_gs->gamePadMapperState = 
+							GamePadMapperState::WAITING_FOR_NEXT_ACTIVE_AXIS;
+						break;
+					}
+				}
+				else /* g_gs->gamePadButtonOrAxisHoldSeconds >= 
+				            HOLD_SECONDS_REQUIRED */
+				{
+					const PlatformGamePadActiveAxis activeAxis = 
+						g_kpl->getGamePadActiveAxis(g_gs->activeGamePad);
+					if(activeAxis.index != INVALID_PLATFORM_AXIS_INDEX)
+					{
+						ImGui::PushStyleColor(ImGuiCol_PlotHistogram, 
+						                      ImVec4(0,1,0,1));
+						ImGui::ProgressBar(1.f, ImVec2(300, 0), "ACQUIRED!");
+						ImGui::PopStyleColor();
+						break;
+					}
+					g_gs->gamePadButtonOrAxisHoldSeconds = 
+						HOLD_SECONDS_REQUIRED;
+					g_gs->axisMap[g_gs->nextToMapAxis] = 
+						g_gs->activeAxis;
+					g_gs->nextToMapAxis++;
+					if(g_gs->nextToMapAxis >= CARRAY_COUNT(g_gs->axisMap))
+					{
+						g_gs->gamePadMapperState = GamePadMapperState::DONE;
+					}
+					else
+					{
+						g_gs->gamePadMapperState = 
+							GamePadMapperState::WAITING_FOR_NEXT_ACTIVE_AXIS;
+					}
+				}
+			} break;
+			case GamePadMapperState::DONE:
+			{
+				padMapperImGuiDisplayPadInfo();
+				ImGui::Separator();
+				if(ImGui::Button("Copy To Clipboard"))
+				{
+					padMapperSaveMapToClipboard();
+				}
 			} break;
 		}
 	}

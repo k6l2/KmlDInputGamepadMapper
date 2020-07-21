@@ -23,6 +23,7 @@ enum class GamePadMapperState : u8
 	, ACQUIRING_NEXT_ACTIVE_BUTTON
 	, WAITING_FOR_NEXT_ACTIVE_AXIS
 	, ACQUIRING_NEXT_ACTIVE_AXIS
+	, DONE
 };
 struct GameState
 {
@@ -40,8 +41,9 @@ struct GameState
 	u8 nextToMapButton;
 	u8 nextToMapAxis;
 	u16 activeButtonIndex;
-	u16 activeAxisIndex;
+	PlatformGamePadActiveAxis activeAxis;
 	u16 buttonMap[CARRAY_COUNT(GamePad::buttons)];
+	PlatformGamePadActiveAxis axisMap[6];
 	char padMapOutputBuffer[16 * 1024];
 };
 global_variable GameState* g_gs;
