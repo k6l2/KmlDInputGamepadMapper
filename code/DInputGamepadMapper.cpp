@@ -182,7 +182,7 @@ internal void padMapperSaveMapToClipboard()
 			continue;
 		currChar += sprintf_s(g_gs->padMapOutputBuffer + currChar, 
 		                      CARRAY_COUNT(g_gs->padMapOutputBuffer) - currChar, 
-		                      ",%ca%i:%i", 
+		                      ",%c%i:%i", 
 		                      g_gs->axisMap[a].positive ? '+' : '-', 
 		                      g_gs->axisMap[a].index, a);
 		bool duplicateAxisFound = false;
